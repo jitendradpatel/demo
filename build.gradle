@@ -1,0 +1,74 @@
+import com.bmuschko.gradle.docker.tasks.image.Dockerfile
+import com.bmuschko.gradle.docker.tasks.image.DockerBuildImage
+import com.bmuschko.gradle.docker.tasks.image.DockerPushImage
+import com.bmuschko.gradle.docker.tasks.image.DockerInspectImage
+
+plugins {
+	id 'java'
+	id 'org.springframework.boot' version '3.3.2'
+	id 'io.spring.dependency-management' version '1.1.6'
+	id 'com.bmuschko.docker-remote-api' version '9.0.1'
+}
+
+group = 'com.example'
+version = '0.0.1-SNAPSHOT'
+
+java {
+	toolchain {
+		languageVersion = JavaLanguageVersion.of(17)
+	}
+}
+
+repositories {
+	mavenCentral()
+}
+
+dependencies {
+	implementation 'org.springframework.boot:spring-boot-starter'
+	testImplementation 'org.springframework.boot:spring-boot-starter-test'
+	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+tasks.named('test') {
+	useJUnitPlatform()
+}
+
+task createDockerfile(type: Dockerfile) {
+	from 'openjdk:17'
+	label(['maintainer': 'jitendradpatel'])
+}
+
+task buildImage(type: DockerBuildImage) {
+	dependsOn createDockerfile
+	images.add('jitendradpatel/testimage:latest')
+
+	if(System.getProperty("targetPlatform") != null && !"".equals(System.getProperty("targetPlatform"))) {
+		platform = System.getProperty("targetPlatform")
+		println "Using targetPlatform as " + System.getProperty("targetPlatform") + "..."
+	} else {
+		println "Using default targetPlatform..."
+	}
+
+}
+
+task pushImage(type: DockerPushImage) {
+	dependsOn buildImage
+	images.add('jitendradpatel/testimage:latest')
+}
+
+task inspectImage(type: DockerInspectImage) {
+	imageId = buildImage.imageId
+	onNext { image ->
+		println("image arch type: " + image.os + "/" + image.arch)
+		assert image.os == 'linux'
+		assert image.arch == 'arm64'
+	}
+}
+docker {
+	registryCredentials {
+		url = 'https://index.docker.io/v1/'
+		username = '<DOCKER_HUB_USER>'
+		password = '<DOCKER_HUB_PSWD>'
+		email = '<DOCKER_HUB_EMAIL>'
+	}
+}
